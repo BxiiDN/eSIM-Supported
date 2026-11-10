@@ -1,0 +1,94 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release APK (arm64-v8a)
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace :app:assembleRelease 2>&1 | tee build.log
+
+      - name: Unit tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon :app:testReleaseUnitTest 2>&1 | tee test.log
+
+      - name: Collect APK
+        id: apk
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          mkdir -p dist
+          APK="dist/eSIM-Manager-v${VERSION}-arm64-v8a.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          (cd dist && sha256sum "$(basename "$APK")" > "$(basename "$APK").sha256")
+          ls -la dist
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eSIM-Manager-arm64-v8a
+          path: dist/*
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.apk.outputs.version }}
+        run: |
+          TAG="v${VERSION}"
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          sleep 3
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "eSIM Manager ${TAG}" \
+            --notes-file RELEASE_NOTES.md \
+            --latest
+
+      # Bila build gagal, ringkasan log disimpan ke cabang ci-logs agar mudah diperiksa.
+      - name: Publish failure log
+        if: failure()
+        run: |
+          {
+            echo "commit: $GITHUB_SHA"
+            echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "===== errors ====="
+            grep -nE "^e: |error:|ERROR|FAILED|What went wrong|Could not|Unresolved|warning: unresolved" build.log | head -n 200 || true
+            echo "===== tail ====="
+            tail -n 250 build.log || true
+          } > /tmp/build-failure.log 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ci-logs
+          git rm -rf --cached . > /dev/null 2>&1 || true
+          cp /tmp/build-failure.log build-failure.log
+          git add -f build-failure.log
+          git commit -m "CI failure log for $GITHUB_SHA"
+          git push -f origin ci-logs

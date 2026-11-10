@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Badan kartu SIM dengan sudut terpotong -->
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M39,30 h21 l13,13 v31 a5,5 0 0 1 -5,5 h-29 a5,5 0 0 1 -5,-5 v-39 a5,5 0 0 1 5,-5 z" />
+    <!-- Chip -->
+    <path
+        android:fillColor="#0B0B0C"
+        android:pathData="M43,52 h22 a2,2 0 0 1 2,2 v16 a2,2 0 0 1 -2,2 h-22 a2,2 0 0 1 -2,-2 v-16 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M45,56 h6 v5 h-6 z M53,56 h10 v5 h-10 z M45,63 h10 v5 h-10 z M57,63 h6 v5 h-6 z" />
+</vector>
